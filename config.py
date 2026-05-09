@@ -16,7 +16,7 @@ DESCRIPTION = (
     "A transparent, verifiable, and permanent tracking system for the "
     "medication lifecycle — preventing theft and ensuring accountability."
 )
-LOGO_PATH = "logo.svg"  # replace with your actual filename
+LOGO_PATH = "logo.jpeg" # replace with your actual filename
 
 # --- 2. NETWORK SETTINGS ---
 RPC_URL = "https://ethereum-sepolia-rpc.publicnode.com"
