@@ -7,6 +7,7 @@ SECTIONS:
   2. NETWORK SETTINGS     — Sepolia RPC endpoint and chain ID
   3. SMART CONTRACT INFO  — address and ABI copied directly from Etherscan
   4. DATA DICTIONARIES    — human-readable labels for status codes and roles
+  5. TEAM MEMBERS         — authorised wallet addresses mapped to names and roles
 """
 
 # --- 1. APPLICATION DISPLAY ---
@@ -385,3 +386,76 @@ ROLE_LABELS = [label for label, _ in ROLE_OPTIONS]
 
 # Etherscan base URL — append a tx hash to build a clickable link
 ETHERSCAN_BASE = "https://sepolia.etherscan.io/tx/"
+
+# --- 5. TEAM MEMBERS ---
+# Authorised wallet addresses mapped to member details.
+# Keys are checksummed addresses (mixed-case EIP-55 format).
+# The contract role string matches the raw values in ROLE_OPTIONS above.
+#
+# Usage example in your app:
+#   member = TEAM_MEMBERS.get(Web3.to_checksum_address(connected_address))
+#   if member:
+#       st.success(f"Welcome, {member['name']} — {member['display_role']}")
+
+TEAM_MEMBERS = {
+    # Andile Duma — Founder
+    "0xf061B4Ad458cE89D95dEb62bEA1C552e5CD99588": {
+        "name":         "Andile Duma",
+        "display_role": "Founder",
+        "contract_role": "FOUNDER",
+    },
+    # Asanda Mabaso — Chief Executive Officer
+    "0x56C2630824Aa36c70e7Ad1ef989cd1DFA26c9DFA": {
+        "name":         "Asanda Mabaso",
+        "display_role": "Chief Executive Officer",
+        "contract_role": "CEO",
+    },
+    # Vuyani Magagula — Procurement Manager
+    "0x2Dd586b00BF04281D2C14Cca4F46D7fB31f47c59": {
+        "name":         "Vuyani Magagula",
+        "display_role": "Procurement Manager",
+        "contract_role": "PROCUREMENT_MANAGER",
+    },
+    # Thabang Makgalemele — Auditor
+    "0xF3bBA1f93DF078BFa6FC2bdC184294D9165F61C2": {
+        "name":         "Thabang Makgalemele",
+        "display_role": "Auditor",
+        "contract_role": "AUDITOR",
+    },
+    # Siboniso Sangweni — Quality Inspector
+    "0x777Fc84933d4C2f7d78864afe2C466f515161CbC": {
+        "name":         "Siboniso Sangweni",
+        "display_role": "Quality Inspector",
+        "contract_role": "QUALITY_INSPECTOR",
+    },
+    # Lesley Ramahlo — Technical Manager
+    "0xbCE1DaDEddEDd437B8c691967F6f3d4c4459cb53": {
+        "name":         "Lesley Ramahlo",
+        "display_role": "Technical Manager",
+        "contract_role": "TECHNICAL_MANAGER",
+    },
+}
+
+def get_member_by_address(address: str) -> dict | None:
+    """
+    Look up a team member by their connected MetaMask address.
+
+    Accepts any casing — normalises to EIP-55 checksum before lookup.
+    Returns the member dict  { name, display_role, contract_role }
+    or None if the address is not in the authorised list.
+
+    Example
+    -------
+    from web3 import Web3
+    member = get_member_by_address(web3.eth.accounts[0])
+    if member:
+        st.success(f"Welcome {member['name']} ({member['display_role']})")
+    else:
+        st.error("Address not recognised — contact the Founder to be added.")
+    """
+    try:
+        from web3 import Web3
+        checksum = Web3.to_checksum_address(address)
+    except Exception:
+        return None
+    return TEAM_MEMBERS.get(checksum)
