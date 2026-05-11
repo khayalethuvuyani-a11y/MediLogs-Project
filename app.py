@@ -73,6 +73,17 @@ if _check:
 # HELPERS
 # =============================================================================
 
+def get_connected_member() -> dict | None:
+    """
+    Return the TEAM_MEMBERS entry for the currently connected wallet,
+    or None if the address is not in the authorised list.
+    """
+    addr = st.session_state.wallet_address
+    if not addr:
+        return None
+    return config.get_member_by_address(addr)
+
+
 def render_header():
     """Show logo OR app name (never both), then tagline and description."""
     shown = False
@@ -134,7 +145,6 @@ def send_tx(fn_name: str, args: list):
         st.error("Contract is not initialised — check config.py.")
         return None
     try:
-        # encode_abi returns a hex string like "0xabcd..." safe to embed in JS
         calldata = contract.encode_abi(fn_name, args=args)
         js = f"""
         (async () => {{
@@ -153,7 +163,6 @@ def send_tx(fn_name: str, args: list):
             }}
         }})()
         """
-        # Unique key per call so Streamlit doesn't reuse a cached widget result
         result = streamlit_js_eval(js_expressions=js, key=f"tx_{fn_name}_{time.time()}")
         if result is None:
             return None
@@ -185,8 +194,17 @@ with st.sidebar:
     chain = st.session_state.wallet_chain_id
 
     if addr:
-        st.success("Connected")
+        # ── Recognised team member ────────────────────────────────────────────
+        member = get_connected_member()
+        if member:
+            st.success(f"👋 Welcome, **{member['name']}**")
+            st.info(f"🏷️ {member['display_role']}", icon=None)
+        else:
+            st.success("Connected")
+            st.warning("⚠️ Address not in the team roster.")
+
         st.code(f"{addr[:6]}...{addr[-4:]}", language=None)
+
         if chain and chain.lower() == config.TARGET_CHAIN_ID_HEX.lower():
             st.caption("✅ Sepolia Testnet")
         else:
@@ -194,7 +212,6 @@ with st.sidebar:
     else:
         st.info("Not connected")
         if st.button("Connect MetaMask", use_container_width=True):
-            # Only trigger the MetaMask popup when the user explicitly clicks
             _res = streamlit_js_eval(
                 js_expressions="""
                 (async () => {
@@ -244,6 +261,20 @@ with st.sidebar:
 # =============================================================================
 if page == "📊 Dashboard":
     render_header()
+
+    # ── Personalised welcome banner ───────────────────────────────────────────
+    member = get_connected_member()
+    if member:
+        st.success(
+            f"👋 Welcome back, **{member['name']}** — "
+            f"logged in as **{member['display_role']}**."
+        )
+    elif st.session_state.wallet_address:
+        st.warning(
+            "Your wallet is connected but your address is not in the MediLogs team roster. "
+            "Contact the Founder to be added."
+        )
+
     st.subheader("System Overview")
 
     col1, col2 = st.columns(2)
@@ -251,7 +282,6 @@ if page == "📊 Dashboard":
     with col1:
         with st.spinner("Fetching total medications…"):
             try:
-                # medicationCount() is the real function name in the deployed contract
                 total = contract.functions.medicationCount().call()
                 st.metric("Total Medications Registered", total)
             except Exception as e:
@@ -270,9 +300,7 @@ if page == "📊 Dashboard":
     if st.button("Look Up", key="dash_lookup"):
         with st.spinner(f"Fetching medication #{q_id}…"):
             try:
-                # getMedicationDetails returns a tuple struct from the contract
                 med = contract.functions.getMedicationDetails(q_id).call()
-                # med = (id, name, batchNumber, status, currentHandler, timestamp)
                 color = status_color(med[3])
                 st.markdown(f"### {med[1]}")
                 st.markdown(f"**Stage:** :{color}[{status_label(med[3])}]")
@@ -304,7 +332,6 @@ elif page == "🔍 Medication Tracker":
         with st.spinner(f"Fetching record #{med_id}…"):
             try:
                 med = contract.functions.getMedicationDetails(med_id).call()
-                # med = (id, name, batchNumber, status, currentHandler, timestamp)
                 color = status_color(med[3])
                 st.markdown(f"### {med[1]}")
                 st.markdown(f"**Stage:** :{color}[{status_label(med[3])}]")
@@ -317,6 +344,13 @@ elif page == "🔍 Medication Tracker":
                     st.metric("Last Updated",   format_ts(med[5]))
                     st.caption("Current handler")
                     st.code(med[4], language=None)
+
+                    # If the handler address belongs to a known team member, name them
+                    handler_member = config.get_member_by_address(med[4])
+                    if handler_member:
+                        st.caption(
+                            f"👤 {handler_member['name']} — {handler_member['display_role']}"
+                        )
             except Exception as e:
                 st.error(f"Unable to retrieve record: {e}")
 
@@ -324,6 +358,13 @@ elif page == "🔍 Medication Tracker":
     st.subheader("Check a Staff Member's Role")
     role_addr = st.text_input("Wallet Address", placeholder="0x…", key="role_addr")
     st.caption("Enter the Ethereum wallet address of the staff member.")
+
+    # Pre-fill hint if the connected wallet belongs to a team member
+    if not role_addr and st.session_state.wallet_address:
+        m = get_connected_member()
+        if m:
+            st.caption(f"💡 Your address is connected as **{m['name']}** ({m['display_role']}).")
+
     if st.button("Check Role"):
         if not role_addr:
             st.warning("Please enter a wallet address.")
@@ -331,17 +372,24 @@ elif page == "🔍 Medication Tracker":
             with st.spinner("Looking up role…"):
                 try:
                     checksummed = Web3.to_checksum_address(role_addr)
-                    # roles() mapping returns a plain string in the live contract
                     role_str = contract.functions.roles(checksummed).call()
+
+                    # Also check our local roster for the name
+                    local_member = config.get_member_by_address(role_addr)
+
                     if not role_str:
                         st.info("This address has no role assigned in MediLogs.")
                     else:
-                        # Translate the raw role key to a friendly display label
                         display = next(
                             (label for label, key in config.ROLE_OPTIONS if key == role_str),
-                            role_str  # fall back to the raw string if not in our list
+                            role_str
                         )
-                        st.success(f"Role: **{display}**")
+                        if local_member:
+                            st.success(
+                                f"**{local_member['name']}** — Role: **{display}**"
+                            )
+                        else:
+                            st.success(f"Role: **{display}**")
                 except ValueError:
                     st.error("Invalid Ethereum address — must start with 0x and be 42 characters.")
                 except Exception as e:
@@ -354,7 +402,15 @@ elif page == "🔍 Medication Tracker":
 elif page == "🚚 Supply Chain Actions":
     render_header()
     st.subheader("Supply Chain Actions")
-    st.write("Move a medication through each stage of its lifecycle. Each action requires the appropriate staff role.")
+
+    # Role-based guidance banner
+    member = get_connected_member()
+    if member:
+        st.info(f"Connected as **{member['name']}** ({member['display_role']}). "
+                "Only actions permitted for your role will succeed on-chain.")
+    else:
+        st.write("Move a medication through each stage of its lifecycle. "
+                 "Each action requires the appropriate staff role.")
 
     action = st.selectbox("Choose an action", [
         "Register New Medication Batch",
@@ -380,7 +436,6 @@ elif page == "🚚 Supply Chain Actions":
                 st.warning("Please fill in both fields.")
             else:
                 with st.spinner("Waiting for MetaMask confirmation…"):
-                    # Live contract takes only (name, batchNumber) — no id/quantity/expiry
                     show_tx(send_tx("registerMedication", [r_name, r_batch]))
 
     # ── Dispatch ──────────────────────────────────────────────────────────────
@@ -440,7 +495,18 @@ elif page == "🚚 Supply Chain Actions":
 elif page == "📋 Audit":
     render_header()
     st.subheader("Audit")
-    st.write("Flag a medication batch for independent review. Requires Auditor role.")
+
+    member = get_connected_member()
+    if member:
+        if member["contract_role"] == "AUDITOR":
+            st.success(f"✅ Authenticated as **{member['name']}** — Auditor access confirmed.")
+        else:
+            st.warning(
+                f"You are connected as **{member['name']}** ({member['display_role']}). "
+                "Only the Auditor can submit audit flags."
+            )
+    else:
+        st.write("Flag a medication batch for independent review. Requires Auditor role.")
 
     aud_id = st.number_input("Medication ID", min_value=1, step=1, key="aud_id")
     st.caption("The numeric ID of the medication batch to be audited.")
@@ -460,7 +526,14 @@ elif page == "📋 Audit":
                 st.markdown(f"**{med[1]}** — Batch `{med[2]}`")
                 st.markdown(f"Stage: :{color}[{status_label(med[3])}]")
                 st.metric("Last Updated", format_ts(med[5]))
-                st.caption(f"Current handler: `{med[4]}`")
+                handler_member = config.get_member_by_address(med[4])
+                if handler_member:
+                    st.caption(
+                        f"Current handler: `{med[4]}` — "
+                        f"👤 {handler_member['name']} ({handler_member['display_role']})"
+                    )
+                else:
+                    st.caption(f"Current handler: `{med[4]}`")
             except Exception as e:
                 st.error(f"Could not load record: {e}")
 
@@ -471,11 +544,38 @@ elif page == "📋 Audit":
 elif page == "👤 Role Management":
     render_header()
     st.subheader("Role Management")
-    st.write("Assign roles to staff wallet addresses. Requires Founder role.")
+
+    member = get_connected_member()
+    if member:
+        if member["contract_role"] == "FOUNDER":
+            st.success(f"✅ Authenticated as **{member['name']}** — Founder access confirmed.")
+        else:
+            st.warning(
+                f"You are connected as **{member['name']}** ({member['display_role']}). "
+                "Only the Founder can assign roles."
+            )
+    else:
+        st.write("Assign roles to staff wallet addresses. Requires Founder role.")
 
     st.markdown("#### Assign a Role")
+
+    # Quick-select from known team members
+    st.caption("Quick-select a team member or enter any address manually below.")
+    team_options = ["— select —"] + [
+        f"{v['name']} ({v['display_role']})"
+        for v in config.TEAM_MEMBERS.values()
+    ]
+    team_addresses = [None] + list(config.TEAM_MEMBERS.keys())
+    selected_idx = st.selectbox("Known Team Member", range(len(team_options)),
+                                format_func=lambda i: team_options[i], key="rm_team_pick")
+    prefilled_addr = team_addresses[selected_idx] if selected_idx else ""
+
     with st.form("role_form"):
-        rm_addr  = st.text_input("Staff Member's Wallet Address", placeholder="0x…")
+        rm_addr = st.text_input(
+            "Staff Member's Wallet Address",
+            value=prefilled_addr or "",
+            placeholder="0x…"
+        )
         st.caption("The Ethereum wallet address of the person receiving the role.")
         rm_label = st.selectbox("Role to Assign", config.ROLE_LABELS)
         st.caption(
@@ -489,7 +589,6 @@ elif page == "👤 Role Management":
         if not rm_addr:
             st.warning("Please enter a wallet address.")
         else:
-            # Resolve the display label back to the raw role key string
             role_key = next((k for l, k in config.ROLE_OPTIONS if l == rm_label), None)
             if not role_key:
                 st.error("Could not resolve the selected role.")
@@ -497,7 +596,6 @@ elif page == "👤 Role Management":
                 try:
                     checksummed = Web3.to_checksum_address(rm_addr)
                     with st.spinner("Waiting for MetaMask…"):
-                        # Live contract assignRole takes (address, string) — plain string role
                         show_tx(send_tx("assignRole", [checksummed, role_key]))
                 except ValueError:
                     st.error("Invalid Ethereum address — must start with 0x.")
@@ -506,6 +604,16 @@ elif page == "👤 Role Management":
 
     st.divider()
     st.markdown("#### Look Up a Staff Member's Role")
+
+    # Display the full team roster from config
+    st.caption("**Registered Team Members**")
+    for wallet, info in config.TEAM_MEMBERS.items():
+        col_a, col_b, col_c = st.columns([3, 2, 4])
+        col_a.write(info["name"])
+        col_b.write(info["display_role"])
+        col_c.code(f"{wallet[:6]}…{wallet[-4:]}", language=None)
+
+    st.divider()
     lk_addr = st.text_input("Wallet Address", placeholder="0x…", key="lk_addr")
     if st.button("Check Role"):
         if not lk_addr:
@@ -515,6 +623,7 @@ elif page == "👤 Role Management":
                 try:
                     checksummed = Web3.to_checksum_address(lk_addr)
                     role_str    = contract.functions.roles(checksummed).call()
+                    local_member = config.get_member_by_address(lk_addr)
                     if not role_str:
                         st.info("This address has no role in the MediLogs system.")
                     else:
@@ -522,7 +631,12 @@ elif page == "👤 Role Management":
                             (label for label, key in config.ROLE_OPTIONS if key == role_str),
                             role_str
                         )
-                        st.success(f"Current Role: **{display}**")
+                        if local_member:
+                            st.success(
+                                f"**{local_member['name']}** — Current Role: **{display}**"
+                            )
+                        else:
+                            st.success(f"Current Role: **{display}**")
                 except ValueError:
                     st.error("Invalid Ethereum address.")
                 except Exception as e:
