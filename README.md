@@ -50,9 +50,9 @@ In many healthcare systems, corruption, missing stock, fake suppliers, and poor 
 
 | Name | Role |
 |---|---|
-| **Andile Duma** | Founder |
+| **Vuyani Magagula** | Founder |
 | **Asanda Mabaso** | Chief Executive Officer (CEO) |
-| **Vuyani Magagula** | Procurement Manager |
+| **Andile Duma** | Procurement Manager |
 | **Thabang Makgalemele** | Auditor |
 | **Siboniso Sangweni** | Quality Inspector |
 | **Lesley Ramahlo** | Technical Manager |
