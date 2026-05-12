@@ -398,11 +398,11 @@ ETHERSCAN_BASE = "https://sepolia.etherscan.io/tx/"
 #       st.success(f"Welcome, {member['name']} — {member['display_role']}")
 
 TEAM_MEMBERS = {
-    # Andile Duma — Procurement Manager
-    "0xf061B4Ad458cE89D95dEb62bEA1C552e5CD99588": {
-        "name":         "Andile Duma",
-        "display_role": "Procurement Manager",
-        "contract_role": "PROCUREMENT_MANAGER",
+     # Vuyani Magagula — Founder
+    "0x2Dd586b00BF04281D2C14Cca4F46D7fB31f47c59": {
+        "name":         "Vuyani Magagula",
+        "display_role": "Founder",
+        "contract_role": "FOUNDER",
     },
     # Asanda Mabaso — Chief Executive Officer
     "0x56C2630824Aa36c70e7Ad1ef989cd1DFA26c9DFA": {
@@ -410,11 +410,11 @@ TEAM_MEMBERS = {
         "display_role": "Chief Executive Officer",
         "contract_role": "CEO",
     },
-    # Vuyani Magagula — Founder
-    "0x2Dd586b00BF04281D2C14Cca4F46D7fB31f47c59": {
-        "name":         "Vuyani Magagula",
-        "display_role": "Founder",
-        "contract_role": "FOUNDER",
+    # Andile Duma — Procurement Manager
+    "0xf061B4Ad458cE89D95dEb62bEA1C552e5CD99588": {
+        "name":         "Andile Duma",
+        "display_role": "Procurement Manager",
+        "contract_role": "PROCUREMENT_MANAGER",
     },
     # Thabang Makgalemele — Auditor
     "0xF3bBA1f93DF078BFa6FC2bdC184294D9165F61C2": {
